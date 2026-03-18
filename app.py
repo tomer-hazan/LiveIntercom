@@ -34,8 +34,15 @@ except Exception as e:
 def index():
     return render_template('index.html')
 
+@app.route('/listener')
+def listener():
+    return render_template('receiver.html')
+
 @socketio.on('audio_stream')
 def handle_audio_stream(audio_bytes):
+    # Broadcast the audio to all connected clients (the new website)
+    socketio.emit('audio_broadcast', audio_bytes, broadcast=True, include_self=False)
+    
     # PyAudio directly accepts the raw binary data (Float32Array) from the browser
     # and instantly pushes it to the server's local speakers.
     if audio_stream.is_active():
