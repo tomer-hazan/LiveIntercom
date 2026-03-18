@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 from flask_socketio import SocketIO
 import pyaudio
 import sys
@@ -40,8 +40,8 @@ def listener():
 
 @socketio.on('audio_stream')
 def handle_audio_stream(audio_bytes):
-    # Broadcast the audio to all connected clients (the new website)
-    socketio.emit('audio_broadcast', audio_bytes, broadcast=True, include_self=False)
+    # Broadcast the audio to all connected clients (except the one broadcasting)
+    socketio.emit('audio_broadcast', audio_bytes, skip_sid=request.sid)
     
     # Send directly to the Pi Speaker
     socketio.emit('play_on_pi', audio_bytes)
