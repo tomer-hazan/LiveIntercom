@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,48 +8,60 @@
     <!-- Include Socket.IO client library directly from CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
     <style>
-        body { 
-            font-family: 'Segoe UI', Arial, sans-serif; 
-            text-align: center; 
-            margin-top: 80px; 
-            background-color: #121212; 
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            text-align: center;
+            margin-top: 80px;
+            background-color: #121212;
             color: #ffffff;
         }
-        h1 { font-size: 3em; margin-bottom: 10px; }
-        p { color: #aaaaaa; }
-        
-        button { 
-            font-size: 24px; 
-            padding: 20px 40px; 
-            border-radius: 50px; 
-            cursor: pointer; 
-            border: none; 
-            font-weight: bold; 
+
+        h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+
+        p {
+            color: #aaaaaa;
+        }
+
+        button {
+            font-size: 24px;
+            padding: 20px 40px;
+            border-radius: 50px;
+            cursor: pointer;
+            border: none;
+            font-weight: bold;
             transition: all 0.2s ease;
             margin-top: 30px;
         }
-        button:active { transform: scale(0.95); }
-        
-        #startBtn { 
-            background-color: #4CAF50; 
-            color: white; 
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        #startBtn {
+            background-color: #4CAF50;
+            color: white;
             box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
         }
-        #stopBtn { 
-            background-color: #f44336; 
-            color: white; 
-            display: none; 
+
+        #stopBtn {
+            background-color: #f44336;
+            color: white;
+            display: none;
             box-shadow: 0 4px 15px rgba(244, 67, 54, 0.4);
         }
-        
-        #status { 
-            margin-top: 40px; 
-            font-size: 22px; 
+
+        #status {
+            margin-top: 40px;
+            font-size: 22px;
             font-weight: 500;
             color: #888;
         }
     </style>
 </head>
+
 <body>
     <h1>🎙️ Live Security Intercom</h1>
     <p>Press "Start Talking" to broadcast your microphone directly to the server speakers.</p>
@@ -56,16 +69,20 @@
     <button id="startBtn">🎤 Start Talking</button>
     <button id="stopBtn">⏹️ Stop</button>
 
-    <div style="margin-top: 25px; background: #1e1e1e; padding: 15px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+    <div
+        style="margin-top: 25px; background: #1e1e1e; padding: 15px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
         <label for="micGain" style="font-weight: bold; margin-right: 15px; font-size: 18px;">Microphone Boost:</label>
-        <input type="range" id="micGain" min="1" max="10" value="3" step="0.5" style="vertical-align: middle; cursor: pointer; width: 150px;">
-        <span id="gainValue" style="color: #4CAF50; font-weight: bold; margin-left: 15px; font-size: 18px; display: inline-block; width: 40px;">3.0x</span>
+        <input type="range" id="micGain" min="1" max="10" value="3" step="0.5"
+            style="vertical-align: middle; cursor: pointer; width: 150px;">
+        <span id="gainValue"
+            style="color: #4CAF50; font-weight: bold; margin-left: 15px; font-size: 18px; display: inline-block; width: 40px;">3.0x</span>
     </div>
 
     <div id="status">Status: Connecting to server...</div>
 
     <div>
-        <canvas id="visualizer" width="600" height="150" style="margin-top:20px; border-radius:10px; background-color:#1e1e1e; box-shadow:0 4px 15px rgba(0,0,0,0.5); max-width: 100%;"></canvas>
+        <canvas id="visualizer" width="600" height="150"
+            style="margin-top:20px; border-radius:10px; background-color:#1e1e1e; box-shadow:0 4px 15px rgba(0,0,0,0.5); max-width: 100%;"></canvas>
     </div>
 
     <script>
@@ -86,7 +103,7 @@
         function drawVisualizer() {
             if (!analyser) return;
             visualizerFrame = requestAnimationFrame(drawVisualizer);
-            
+
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
             analyser.getByteTimeDomainData(dataArray);
@@ -132,13 +149,13 @@
         });
 
         socket.on('connect', () => {
-             statusEl.innerText = "Status: Server Connected. Ready.";
-             statusEl.style.color = "#4CAF50";
+            statusEl.innerText = "Status: Server Connected. Ready.";
+            statusEl.style.color = "#4CAF50";
         });
 
         socket.on('disconnect', () => {
-             statusEl.innerText = "Status: Server Disconnected. Retrying...";
-             statusEl.style.color = "#f44336";
+            statusEl.innerText = "Status: Server Disconnected. Retrying...";
+            statusEl.style.color = "#f44336";
         });
 
         startBtn.onclick = async () => {
@@ -146,37 +163,37 @@
                 // Request access to the user's microphone
                 // NOTE: This usually requires HTTPS! Which zrok happily provides for you.
                 mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                
+
                 // Set sample rate to 44.1kHz to match the Pi Speaker and local PyAudio config
                 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
                 audioContext = new AudioContextClass({ sampleRate: 44100 });
                 const source = audioContext.createMediaStreamSource(mediaStream);
-                
+
                 // Create a ScriptProcessorNode to intercept audio chunks
                 processor = audioContext.createScriptProcessor(4096, 1, 1);
-                
+
                 analyser = audioContext.createAnalyser();
                 analyser.fftSize = 2048;
                 source.connect(analyser);
 
                 source.connect(processor);
                 processor.connect(audioContext.destination);
-                
+
                 // This fires repeatedly as audio is recorded
                 processor.onaudioprocess = (e) => {
                     const inputData = e.inputBuffer.getChannelData(0); // Gets a Float32Array from the mic
-                    
+
                     // Convert Float32 (from browser) to Int16 (required by Pi Speaker Script and PyAudio)
                     const rawData = new Int16Array(inputData.length);
                     for (let i = 0; i < inputData.length; i++) {
                         // Apply the gain boost from the slider
                         const boostedVal = inputData[i] * currentGain;
-                        
+
                         // Clamp values between -1 and 1 to prevent distortion, then scale to 16-bit
                         const s = Math.max(-1, Math.min(1, boostedVal));
                         rawData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                     }
-                    
+
                     // Send this raw Int16 binary slice directly out the WebSocket to Python!
                     socket.emit('audio_stream', rawData.buffer);
                 };
@@ -202,11 +219,11 @@
 
             if (processor) { processor.disconnect(); processor = null; }
             if (audioContext) { audioContext.close(); audioContext = null; }
-            if (mediaStream) { 
-                mediaStream.getTracks().forEach(track => track.stop()); 
-                mediaStream = null; 
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
             }
-            
+
             startBtn.style.display = 'inline-block';
             stopBtn.style.display = 'none';
             statusEl.innerText = "Status: Stopped.";
@@ -214,4 +231,5 @@
         };
     </script>
 </body>
+
 </html>
