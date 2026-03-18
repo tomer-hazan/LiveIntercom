@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shelter Intercom</title>
+    <!-- Include Socket.IO client library directly from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            text-align: center; 
+            margin-top: 80px; 
+            background-color: #121212; 
+            color: #ffffff;
+        }
+        h1 { font-size: 3em; margin-bottom: 10px; }
+        p { color: #aaaaaa; }
+        
+        button { 
+            font-size: 24px; 
+            padding: 20px 40px; 
+            border-radius: 50px; 
+            cursor: pointer; 
+            border: none; 
+            font-weight: bold; 
+            transition: all 0.2s ease;
+            margin-top: 30px;
+        }
+        button:active { transform: scale(0.95); }
+        
+        #startBtn { 
+            background-color: #4CAF50; 
+            color: white; 
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+        }
+        #stopBtn { 
+            background-color: #f44336; 
+            color: white; 
+            display: none; 
+            box-shadow: 0 4px 15px rgba(244, 67, 54, 0.4);
+        }
+        
+        #status { 
+            margin-top: 40px; 
+            font-size: 22px; 
+            font-weight: 500;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎙️ Live Security Intercom</h1>
+    <p>Press "Start Talking" to broadcast your microphone directly to the server speakers.</p>
+
+    <button id="startBtn">🎤 Start Talking</button>
+    <button id="stopBtn">⏹️ Stop</button>
+
+    <div id="status">Status: Connecting to server...</div>
+
+    <script>
+        const socket = io(); // Automatically finds and connects to the Flask SocketIO server
+        let audioContext;
+        let mediaStream;
+        let processor;
+
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusEl = document.getElementById('status');
+
+        socket.on('connect', () => {
+             statusEl.innerText = "Status: Server Connected. Ready.";
+             statusEl.style.color = "#4CAF50";
+        });
+
+        socket.on('disconnect', () => {
+             statusEl.innerText = "Status: Server Disconnected. Retrying...";
+             statusEl.style.color = "#f44336";
+        });
+
+        startBtn.onclick = async () => {
+            try {
+                // Request access to the user's microphone
+                // NOTE: This usually requires HTTPS! Which zrok happily provides for you.
+                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // Set sample rate to 16kHz so it perfectly matches Python's PyAudio config
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                audioContext = new AudioContextClass({ sampleRate: 16000 });
+                const source = audioContext.createMediaStreamSource(mediaStream);
+                
+                // Create a ScriptProcessorNode to intercept audio chunks
+                processor = audioContext.createScriptProcessor(4096, 1, 1);
+                
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+                
+                // This fires repeatedly as audio is recorded
+                processor.onaudioprocess = (e) => {
+                    const inputData = e.inputBuffer.getChannelData(0); // Gets a Float32Array from the mic
+                    
+                    // We must clone it specifically to its exact size so we don't send memory junk
+                    const rawData = new Float32Array(inputData);
+                    
+                    // Send this raw binary slice directly out the WebSocket to Python!
+                    socket.emit('audio_stream', rawData.buffer);
+                };
+
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-block';
+                statusEl.innerText = "Status: 🔴 Broadcasting Live...";
+                statusEl.style.color = "#ffeb3b"; // Nice yellow caution color
+
+            } catch (err) {
+                console.error("Microphone error", err);
+                alert("Microphone access denied! Ensure you're using HTTPS (zrok link) and allow microphone permissions.");
+            }
+        };
+
+        stopBtn.onclick = () => {
+            // Shut everything down clean
+            if (processor) { processor.disconnect(); processor = null; }
+            if (audioContext) { audioContext.close(); audioContext = null; }
+            if (mediaStream) { 
+                mediaStream.getTracks().forEach(track => track.stop()); 
+                mediaStream = null; 
+            }
+            
+            startBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'none';
+            statusEl.innerText = "Status: Stopped.";
+            statusEl.style.color = "#4CAF50";
+        };
+    </script>
+</body>
+</html>
