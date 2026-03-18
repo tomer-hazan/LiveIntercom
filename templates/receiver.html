@@ -58,11 +58,59 @@
 
     <div id="status">Status: Connecting to server...</div>
 
+    <div>
+        <canvas id="visualizer" width="600" height="150" style="margin-top:20px; border-radius:10px; background-color:#1e1e1e; box-shadow:0 4px 15px rgba(0,0,0,0.5); max-width: 100%;"></canvas>
+    </div>
+
     <script>
         const socket = io(); // Automatically finds and connects to the Flask SocketIO server
         let audioContext;
         let isListening = false;
         let nextTime = 0;
+
+        const visualizerCanvas = document.getElementById('visualizer');
+        const canvasCtx = visualizerCanvas.getContext('2d');
+        let analyser;
+        let visualizerFrame;
+
+        // Initialize canvas
+        canvasCtx.fillStyle = '#1e1e1e';
+        canvasCtx.fillRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+
+        function drawVisualizer() {
+            if (!analyser) return;
+            visualizerFrame = requestAnimationFrame(drawVisualizer);
+            
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteTimeDomainData(dataArray);
+
+            canvasCtx.fillStyle = '#1e1e1e';
+            canvasCtx.fillRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+
+            canvasCtx.lineWidth = 3;
+            canvasCtx.strokeStyle = '#00bcd4';
+            canvasCtx.beginPath();
+
+            const sliceWidth = visualizerCanvas.width * 1.0 / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = v * visualizerCanvas.height / 2;
+
+                if (i === 0) {
+                    canvasCtx.moveTo(x, y);
+                } else {
+                    canvasCtx.lineTo(x, y);
+                }
+
+                x += sliceWidth;
+            }
+
+            canvasCtx.lineTo(visualizerCanvas.width, visualizerCanvas.height / 2);
+            canvasCtx.stroke();
+        }
 
         const listenBtn = document.getElementById('listenBtn');
         const stopListenBtn = document.getElementById('stopListenBtn');
@@ -86,16 +134,29 @@
         listenBtn.onclick = () => {
             const AudioContextClass = window.AudioContext || window.webkitAudioContext;
             audioContext = new AudioContextClass({ sampleRate: 16000 });
+            
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 2048;
+            analyser.connect(audioContext.destination);
+
             isListening = true;
             nextTime = 0;
             listenBtn.style.display = 'none';
             stopListenBtn.style.display = 'inline-block';
             statusEl.innerText = "Status: 🎧 Listening to Broadcast...";
             statusEl.style.color = "#00bcd4"; // Cyan color for receiving
+
+            drawVisualizer();
         };
 
         stopListenBtn.onclick = () => {
             isListening = false;
+
+            if (visualizerFrame) { cancelAnimationFrame(visualizerFrame); visualizerFrame = null; }
+            if (analyser) { analyser.disconnect(); analyser = null; }
+            canvasCtx.fillStyle = '#1e1e1e';
+            canvasCtx.fillRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+
             if (audioContext) { audioContext.close(); audioContext = null; }
             
             listenBtn.style.display = 'inline-block';
@@ -115,7 +176,7 @@
 
             const source = audioContext.createBufferSource();
             source.buffer = buffer;
-            source.connect(audioContext.destination);
+            source.connect(analyser);
 
             // Schedule sequential playback
             if (nextTime === 0 || nextTime < audioContext.currentTime) {

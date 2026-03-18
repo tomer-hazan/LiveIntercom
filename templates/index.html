@@ -58,11 +58,59 @@
 
     <div id="status">Status: Connecting to server...</div>
 
+    <div>
+        <canvas id="visualizer" width="600" height="150" style="margin-top:20px; border-radius:10px; background-color:#1e1e1e; box-shadow:0 4px 15px rgba(0,0,0,0.5); max-width: 100%;"></canvas>
+    </div>
+
     <script>
         const socket = io(); // Automatically finds and connects to the Flask SocketIO server
         let audioContext;
         let mediaStream;
         let processor;
+
+        const visualizerCanvas = document.getElementById('visualizer');
+        const canvasCtx = visualizerCanvas.getContext('2d');
+        let analyser;
+        let visualizerFrame;
+
+        // Initialize canvas
+        canvasCtx.fillStyle = '#1e1e1e';
+        canvasCtx.fillRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+
+        function drawVisualizer() {
+            if (!analyser) return;
+            visualizerFrame = requestAnimationFrame(drawVisualizer);
+            
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteTimeDomainData(dataArray);
+
+            canvasCtx.fillStyle = '#1e1e1e';
+            canvasCtx.fillRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+
+            canvasCtx.lineWidth = 3;
+            canvasCtx.strokeStyle = '#4CAF50';
+            canvasCtx.beginPath();
+
+            const sliceWidth = visualizerCanvas.width * 1.0 / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = v * visualizerCanvas.height / 2;
+
+                if (i === 0) {
+                    canvasCtx.moveTo(x, y);
+                } else {
+                    canvasCtx.lineTo(x, y);
+                }
+
+                x += sliceWidth;
+            }
+
+            canvasCtx.lineTo(visualizerCanvas.width, visualizerCanvas.height / 2);
+            canvasCtx.stroke();
+        }
 
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
@@ -92,6 +140,10 @@
                 // Create a ScriptProcessorNode to intercept audio chunks
                 processor = audioContext.createScriptProcessor(4096, 1, 1);
                 
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+                source.connect(analyser);
+
                 source.connect(processor);
                 processor.connect(audioContext.destination);
                 
@@ -111,6 +163,7 @@
                 statusEl.innerText = "Status: 🔴 Broadcasting Live...";
                 statusEl.style.color = "#ffeb3b"; // Nice yellow caution color
 
+                drawVisualizer();
             } catch (err) {
                 console.error("Microphone error", err);
                 alert("Microphone access denied! Ensure you're using HTTPS (zrok link) and allow microphone permissions.");
@@ -119,6 +172,11 @@
 
         stopBtn.onclick = () => {
             // Shut everything down clean
+            if (visualizerFrame) { cancelAnimationFrame(visualizerFrame); visualizerFrame = null; }
+            if (analyser) { analyser.disconnect(); analyser = null; }
+            canvasCtx.fillStyle = '#1e1e1e';
+            canvasCtx.fillRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+
             if (processor) { processor.disconnect(); processor = null; }
             if (audioContext) { audioContext.close(); audioContext = null; }
             if (mediaStream) { 
