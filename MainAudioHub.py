@@ -73,4 +73,4 @@ if __name__ == '__main__':
     print("Listening on http://0.0.0.0:5001")
     print("Waiting for Pi Speaker to connect...")
     print("=====================================")
-    socketio.run(app, host='0.0.0.0', port=5001)
+    socketio.run(app, host='0.0.0.0', port=5600)
