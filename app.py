@@ -51,4 +51,4 @@ if __name__ == '__main__':
     print("Listening on http://0.0.0.0:5000")
     print("You can now connect to this port via zrok.")
     print("=====================================")
-    socketio.run(app, host='0.0.0.0', port=5000)
+    socketio.run(app, host='0.0.0.0', port=5600)
