@@ -56,6 +56,12 @@
     <button id="startBtn">🎤 Start Talking</button>
     <button id="stopBtn">⏹️ Stop</button>
 
+    <div style="margin-top: 25px; background: #1e1e1e; padding: 15px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+        <label for="micGain" style="font-weight: bold; margin-right: 15px; font-size: 18px;">Microphone Boost:</label>
+        <input type="range" id="micGain" min="1" max="10" value="3" step="0.5" style="vertical-align: middle; cursor: pointer; width: 150px;">
+        <span id="gainValue" style="color: #4CAF50; font-weight: bold; margin-left: 15px; font-size: 18px; display: inline-block; width: 40px;">3.0x</span>
+    </div>
+
     <div id="status">Status: Connecting to server...</div>
 
     <div>
@@ -116,6 +122,15 @@
         const stopBtn = document.getElementById('stopBtn');
         const statusEl = document.getElementById('status');
 
+        const micGain = document.getElementById('micGain');
+        const gainValue = document.getElementById('gainValue');
+        let currentGain = parseFloat(micGain.value);
+
+        micGain.addEventListener('input', (e) => {
+            currentGain = parseFloat(e.target.value);
+            gainValue.innerText = currentGain.toFixed(1) + 'x';
+        });
+
         socket.on('connect', () => {
              statusEl.innerText = "Status: Server Connected. Ready.";
              statusEl.style.color = "#4CAF50";
@@ -154,8 +169,11 @@
                     // Convert Float32 (from browser) to Int16 (required by Pi Speaker Script and PyAudio)
                     const rawData = new Int16Array(inputData.length);
                     for (let i = 0; i < inputData.length; i++) {
-                        // Clamp values between -1 and 1 just in case, then scale to 16-bit
-                        const s = Math.max(-1, Math.min(1, inputData[i]));
+                        // Apply the gain boost from the slider
+                        const boostedVal = inputData[i] * currentGain;
+                        
+                        // Clamp values between -1 and 1 to prevent distortion, then scale to 16-bit
+                        const s = Math.max(-1, Math.min(1, boostedVal));
                         rawData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                     }
                     
