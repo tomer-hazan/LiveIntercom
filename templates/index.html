@@ -132,9 +132,9 @@
                 // NOTE: This usually requires HTTPS! Which zrok happily provides for you.
                 mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 
-                // Set sample rate to 16kHz so it perfectly matches Python's PyAudio config
+                // Set sample rate to 44.1kHz to match the Pi Speaker and local PyAudio config
                 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-                audioContext = new AudioContextClass({ sampleRate: 16000 });
+                audioContext = new AudioContextClass({ sampleRate: 44100 });
                 const source = audioContext.createMediaStreamSource(mediaStream);
                 
                 // Create a ScriptProcessorNode to intercept audio chunks
@@ -151,10 +151,15 @@
                 processor.onaudioprocess = (e) => {
                     const inputData = e.inputBuffer.getChannelData(0); // Gets a Float32Array from the mic
                     
-                    // We must clone it specifically to its exact size so we don't send memory junk
-                    const rawData = new Float32Array(inputData);
+                    // Convert Float32 (from browser) to Int16 (required by Pi Speaker Script and PyAudio)
+                    const rawData = new Int16Array(inputData.length);
+                    for (let i = 0; i < inputData.length; i++) {
+                        // Clamp values between -1 and 1 just in case, then scale to 16-bit
+                        const s = Math.max(-1, Math.min(1, inputData[i]));
+                        rawData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                    }
                     
-                    // Send this raw binary slice directly out the WebSocket to Python!
+                    // Send this raw Int16 binary slice directly out the WebSocket to Python!
                     socket.emit('audio_stream', rawData.buffer);
                 };
 

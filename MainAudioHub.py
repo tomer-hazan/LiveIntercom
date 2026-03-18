@@ -9,10 +9,10 @@ app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # --- Audio Settings ---
-# We force the same configuration as the browser's raw audio output.
-FORMAT = pyaudio.paFloat32
+# We force the same configuration as the Pi Speaker script (Int16, 44.1kHz)
+FORMAT = pyaudio.paInt16
 CHANNELS = 1
-RATE = 16000  # 16kHz sample rate (same as we set in JavaScript)
+RATE = 44100  # 44.1kHz sample rate
 CHUNK = 4096  # Chunk size
 
 print("Initializing PyAudio...")
@@ -43,7 +43,10 @@ def handle_audio_stream(audio_bytes):
     # Broadcast the audio to all connected clients (the new website)
     socketio.emit('audio_broadcast', audio_bytes, broadcast=True, include_self=False)
     
-    # PyAudio directly accepts the raw binary data (Float32Array) from the browser
+    # Send directly to the Pi Speaker
+    socketio.emit('play_on_pi', audio_bytes)
+    
+    # PyAudio directly accepts the raw binary data
     # and instantly pushes it to the server's local speakers.
     if audio_stream.is_active():
         try:
@@ -52,10 +55,22 @@ def handle_audio_stream(audio_bytes):
             # Skip if there's a tiny buffer underrun/issue, keeps it real-time
             print(f"Audio buffer skip: {e}")
 
+@socketio.on('pi_status')
+def handle_pi_status(data):
+    status = data.get('status', 'unknown')
+    if status == 'playing':
+        print("🔈 Pi Speaker indicates it is now playing audio.")
+    elif status == 'finished':
+        print(f"🔇 Pi Speaker finished playing. Duration: {data.get('duration')}s")
+    elif status == 'connected':
+        print("✅ Pi Speaker connected successfully!")
+    else:
+        print(f"Pi Status Update: {data}")
+
 if __name__ == '__main__':
     print("=====================================")
     print("Starting Live Intercom Server...")
-    print("Listening on http://0.0.0.0:5000")
-    print("You can now connect to this port via zrok.")
+    print("Listening on http://0.0.0.0:5001")
+    print("Waiting for Pi Speaker to connect...")
     print("=====================================")
-    socketio.run(app, host='0.0.0.0', port=5600)
+    socketio.run(app, host='0.0.0.0', port=5001)
