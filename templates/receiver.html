@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shelter Intercom - Receiver</title>
+    <!-- Include Socket.IO client library directly from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            text-align: center; 
+            margin-top: 80px; 
+            background-color: #121212; 
+            color: #ffffff;
+        }
+        h1 { font-size: 3em; margin-bottom: 10px; }
+        p { color: #aaaaaa; }
+        
+        button { 
+            font-size: 24px; 
+            padding: 20px 40px; 
+            border-radius: 50px; 
+            cursor: pointer; 
+            border: none; 
+            font-weight: bold; 
+            transition: all 0.2s ease;
+            margin-top: 30px;
+        }
+        button:active { transform: scale(0.95); }
+        
+        #listenBtn { 
+            background-color: #2196F3; 
+            color: white; 
+            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.4);
+        }
+        #stopListenBtn { 
+            background-color: #f44336; 
+            color: white; 
+            display: none; 
+            box-shadow: 0 4px 15px rgba(244, 67, 54, 0.4);
+        }
+        
+        #status { 
+            margin-top: 40px; 
+            font-size: 22px; 
+            font-weight: 500;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎧 Live Audio Receiver</h1>
+    <p>Press "Start Listening" to hear audio broadcasted from the microphone page.</p>
+
+    <button id="listenBtn">👂 Start Listening</button>
+    <button id="stopListenBtn">⏹️ Stop</button>
+
+    <div id="status">Status: Connecting to server...</div>
+
+    <script>
+        const socket = io(); // Automatically finds and connects to the Flask SocketIO server
+        let audioContext;
+        let isListening = false;
+        let nextTime = 0;
+
+        const listenBtn = document.getElementById('listenBtn');
+        const stopListenBtn = document.getElementById('stopListenBtn');
+        const statusEl = document.getElementById('status');
+
+        socket.on('connect', () => {
+             if(isListening) {
+                 statusEl.innerText = "Status: Server Connected. Listening...";
+                 statusEl.style.color = "#4CAF50";
+             } else {
+                 statusEl.innerText = "Status: Server Connected. Ready.";
+                 statusEl.style.color = "#4CAF50";
+             }
+        });
+
+        socket.on('disconnect', () => {
+             statusEl.innerText = "Status: Server Disconnected. Retrying...";
+             statusEl.style.color = "#f44336";
+        });
+
+        listenBtn.onclick = () => {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            audioContext = new AudioContextClass({ sampleRate: 16000 });
+            isListening = true;
+            nextTime = 0;
+            listenBtn.style.display = 'none';
+            stopListenBtn.style.display = 'inline-block';
+            statusEl.innerText = "Status: 🎧 Listening to Broadcast...";
+            statusEl.style.color = "#00bcd4"; // Cyan color for receiving
+        };
+
+        stopListenBtn.onclick = () => {
+            isListening = false;
+            if (audioContext) { audioContext.close(); audioContext = null; }
+            
+            listenBtn.style.display = 'inline-block';
+            stopListenBtn.style.display = 'none';
+            statusEl.innerText = "Status: Stopped.";
+            statusEl.style.color = "#4CAF50";
+        };
+
+        socket.on('audio_broadcast', (audioData) => {
+            if (!isListening || !audioContext) return;
+            
+            // audioData is an ArrayBuffer containing Float32 data sent from the Python server
+            const float32Array = new Float32Array(audioData);
+            
+            const buffer = audioContext.createBuffer(1, float32Array.length, 16000);
+            buffer.copyToChannel(float32Array, 0);
+
+            const source = audioContext.createBufferSource();
+            source.buffer = buffer;
+            source.connect(audioContext.destination);
+
+            // Schedule sequential playback
+            if (nextTime === 0 || nextTime < audioContext.currentTime) {
+                nextTime = audioContext.currentTime + 0.05; // tiny buffer for stability
+            }
+            source.start(nextTime);
+            nextTime += buffer.duration;
+        });
+    </script>
+</body>
+</html>
